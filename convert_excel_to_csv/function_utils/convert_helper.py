@@ -64,7 +64,7 @@ class ConvertHelper:
             if include_sheetname_in_result_flag:
                 temp_res['sheet_name'] = sheet
 
-            if ('process_market_share' in parse_config.keys()) and (parse_config['process_market_share']):
+            if ('market_share_type' in parse_config.keys()) and (parse_config['market_share_type'] == 1):
                 metadatas = {
                     "WSP_Sheet1" : {"RETAIL_TYPE" : "", "AREA_TYPE" : "", "TRADING_CODE" : "", "LOCATION" : "Viet Nam"},
                     "WSP_Sheet3" : {"RETAIL_TYPE" : "On", "AREA_TYPE" : "", "TRADING_CODE" : "",  "LOCATION" : ""},
@@ -147,36 +147,70 @@ class ConvertHelper:
 
         # exclude blank cells in header
         values.columns = ['%!%'.join(list(map(str, filter(lambda x: str(x) !='', j)))) for j in list(zip(*[headers.loc[i].reset_index(drop=True) for i in headers.index]))]
-        if ('process_market_share' in config.keys()) and (config['process_market_share']):
-            sub_table_col_metadata = config['table_transform'][0]['cols'][1:-1].split(':')
-            sub_table_start_col = int(sub_table_col_metadata[0]) - 1 if sub_table_col_metadata[0] != '' else 0
-            sub_table_end_col = int(sub_table_col_metadata[1]) - 1 if sub_table_col_metadata[1] != '' else len(values.columns)
-            total_market_keys = values.columns[sub_table_start_col:sub_table_end_col]
-            total_market_values = values.iloc[0, sub_table_start_col:sub_table_end_col].values.tolist()
-            total_market_dict = {total_market_keys[i]: total_market_values[i] for i in range(len(total_market_keys))} 
+        if 'market_share_type' in config.keys():
+            if config['market_share_type'] == 1:
+                sub_table_col_metadata = config['table_transform'][0]['cols'][1:-1].split(':')
+                sub_table_start_col = int(sub_table_col_metadata[0]) - 1 if sub_table_col_metadata[0] != '' else 0
+                sub_table_end_col = int(sub_table_col_metadata[1]) - 1 if sub_table_col_metadata[1] != '' else len(values.columns)
+                total_market_keys = values.columns[sub_table_start_col:sub_table_end_col]
+                total_market_values = values.iloc[0, sub_table_start_col:sub_table_end_col].values.tolist()
+                total_market_dict = {total_market_keys[i]: total_market_values[i] for i in range(len(total_market_keys))} 
 
-            values = values.iloc[1:]
-            cols = list(values.columns)
-            cols[0] = 'COMPANY_NAME'
-            cols[1] = 'PRODUCT_NAME'
-            cols[2] = 'SKU_NAME'
-            values.columns = cols
-            values = values[values.apply(filter_unwanted_row, axis = 1) == False]
-            values['LEVEL'] = None
-            values.loc[values['COMPANY_NAME'].notnull(), ['PRODUCT_NAME','SKU_NAME']] = ''
-            values.loc[values['COMPANY_NAME'].notnull(), ['LEVEL']] = 'Company'
-            values.loc[values['PRODUCT_NAME'].notnull(), ['SKU_NAME']] = ''
-            values.loc[values['PRODUCT_NAME'] !='' , ['LEVEL']] = 'Product'
+                values = values.iloc[1:]
+                cols = list(values.columns)
+                cols[0] = 'COMPANY_NAME'
+                cols[1] = 'PRODUCT_NAME'
+                cols[2] = 'SKU_NAME'
+                values.columns = cols
+                values = values[values.apply(filter_unwanted_row, axis = 1) == False]
+                values['LEVEL'] = None
+                values.loc[values['COMPANY_NAME'].notnull(), ['PRODUCT_NAME','SKU_NAME']] = ''
+                values.loc[values['COMPANY_NAME'].notnull(), ['LEVEL']] = 'Company'
+                values.loc[values['PRODUCT_NAME'].notnull(), ['SKU_NAME']] = ''
+                values.loc[values['PRODUCT_NAME'] !='' , ['LEVEL']] = 'Product'
 
-            cols = ['COMPANY_NAME', 'PRODUCT_NAME']
-            values.loc[:,cols] = values.loc[:,cols].ffill()
+                cols = ['COMPANY_NAME', 'PRODUCT_NAME']
+                values.loc[:,cols] = values.loc[:,cols].ffill()
 
-            values.loc[values['SKU_NAME']!='', ['SKU_NAME']] = values['PRODUCT_NAME'] + ' ' + values['SKU_NAME']
-            values.loc[values['SKU_NAME'] !='', ['LEVEL']] = 'SKU'
+                values.loc[values['SKU_NAME']!='', ['SKU_NAME']] = values['PRODUCT_NAME'] + ' ' + values['SKU_NAME']
+                values.loc[values['SKU_NAME'] !='', ['LEVEL']] = 'SKU'
 
-            cols = list(values.columns)
-            cols = cols[:3] + cols[-1:] + cols[3:-1]
-            values = values[cols]
+                cols = list(values.columns)
+                cols = cols[:3] + cols[-1:] + cols[3:-1]
+                values = values[cols]
+            elif config['market_share_type'] == 2:
+                cols = list(values.columns)
+                cols[0] = 'TRADING_REGION'
+                cols[1] = 'LOCATION'
+                values.columns = cols
+                values.loc[:,cols] = values.loc[:,cols].ffill()
+            elif config['market_share_type'] == 3:
+                cols = list(values.columns)
+                cols[0] = 'LOCATION'
+                cols[1] = 'COMPANY_NAME'
+                cols[2] = 'PRODUCT_NAME'
+                cols[3] = 'SKU_NAME'
+                values.columns = cols
+                
+                values['LEVEL'] = None
+                values.loc[values['COMPANY_NAME'].str.contains('Total', na = False), ['PRODUCT_NAME','SKU_NAME']] = ''
+                values.loc[values['COMPANY_NAME'].str.contains('Total', na = False), ['LEVEL']] = 'Company'
+                values['COMPANY_NAME'] = values['COMPANY_NAME'].str.replace(' Total', '')
+
+                values.loc[values['PRODUCT_NAME'].str.contains("Total", na = False), ['SKU_NAME']] = ''
+                values.loc[values['PRODUCT_NAME'] !='' , ['LEVEL']] = 'Product'
+                values['PRODUCT_NAME'] = values['PRODUCT_NAME'].str.replace(' Total', '')
+                
+                cols = ['LOCATION', 'COMPANY_NAME', 'PRODUCT_NAME']
+                values.loc[:,cols] = values.loc[:,cols].ffill()
+
+                values.loc[values['SKU_NAME'] !='', ['LEVEL']] = 'SKU'
+
+                cols = list(values.columns)
+                cols = cols[:4] + cols[-1:] + cols[4:-1]
+                values = values[cols]
+            
+
         if '' in values.columns:
             values = values.drop([''], axis=1)
 
@@ -211,14 +245,16 @@ class ConvertHelper:
             for i in metrics.keys():
                 values[i] = metrics[i]
 
-        if ('process_market_share' in config.keys()) and (config['process_market_share']):
-            values = values.apply(filter_label, axis = 1, args = (total_market_dict,))
-            cur_date = values.tail(1).iloc[0]['DATE']
-            values.loc[values['DATE'] == 'TY', 'DATE'] = cur_date
-            month, year = cur_date.split(' ')
-            last_date = month + ' ' + str(int(year) - 1)
-            values.loc[values['DATE'] == 'LY', 'DATE'] = last_date
-        
+        if 'market_share_type' in config.keys():
+            if config['market_share_type'] == 1:
+                values = values.apply(filter_label, axis = 1, args = (total_market_dict,))
+                cur_date = values.tail(1).iloc[0]['DATE']
+                values.loc[values['DATE'] == 'TY', 'DATE'] = cur_date
+                month, year = cur_date.split(' ')
+                last_date = month + ' ' + str(int(year) - 1)
+                values.loc[values['DATE'] == 'LY', 'DATE'] = last_date
+            elif config['market_share_type'] == 3:
+                values = values.apply(filter_label_new_format, axis = 1)
         return values
 
 def filter_unwanted_row(row):
@@ -226,6 +262,7 @@ def filter_unwanted_row(row):
     if company_name.startswith(' '):
         return True
     return False
+
 
 def filter_label(row, total_market):
     label = str(row['LABEL'])
@@ -254,6 +291,16 @@ def filter_label(row, total_market):
     row['METRIC'] = metric
     row['DATE'] = date
     row["TOTAL_MARKET"] = total_market[label]
+    return row
+
+def filter_label_new_format(row):
+    label = str(row['LABEL'])
+
+    month = label[:3]
+    year = label[-2:]
+    date = month.upper() + ' 20' + year
+
+    row['DATE'] = date
     return row
 
 if __name__ == "__main__":

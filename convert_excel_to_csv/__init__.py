@@ -14,6 +14,7 @@ sys.path.append(dir_path)
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     TAG = "convert_excel_to_csv.__init__.main"
+    
     LogHelper.log_info(TAG, 'Python HTTP trigger function processed a request.')
 
     request_params = req.get_json()
